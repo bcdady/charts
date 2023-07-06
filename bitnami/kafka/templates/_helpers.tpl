@@ -649,7 +649,7 @@ Init container definition for Kafka initialization
     {{- end }}
     {{- if and (include "kafka.client.saslEnabled" .context ) .context.Values.sasl.client.users }}
     - name: KAFKA_CLIENT_USERS
-      value: {{ joing "," .Values.sasl.client.users | quote }}
+      value: {{ join "," .context.Values.sasl.client.users | quote }}
     - name: KAFKA_CLIENT_PASSWORDS
       valueFrom:
         secretKeyRef:
@@ -658,7 +658,7 @@ Init container definition for Kafka initialization
     {{- end }}
     {{- if regexFind "SASL" (upper .context.Values.listeners.interbroker.protocol) }}
     - name: KAFKA_INTER_BROKER_USER
-      value: {{ .Values.sasl.interbroker.user | quote }}
+      value: {{ .context.Values.sasl.interbroker.user | quote }}
     - name: KAFKA_INTER_BROKER_PASSWORD
       valueFrom:
         secretKeyRef:
@@ -667,7 +667,7 @@ Init container definition for Kafka initialization
     {{- end }}
     {{- if and .context.Values.kraft.enabled (regexFind "SASL" (upper .context.Values.listeners.controller.protocol)) }}
     - name: KAFKA_CONTROLLER_USER
-      value: {{ .Values.sasl.controller.user | quote }}
+      value: {{ .context.Values.sasl.controller.user | quote }}
     - name: KAFKA_CONTROLLER_PASSWORD
       valueFrom:
         secretKeyRef:
@@ -676,7 +676,7 @@ Init container definition for Kafka initialization
     {{- end }}
     {{- if and .context.Values.metrics.kafka.enabled (regexFind "SASL" (upper .context.Values.listeners.client.protocol)) }}
     - name: KAFKA_METRICS_USER
-      value: {{ .Values.sasl.metrics.user | quote }}
+      value: {{ .context.Values.sasl.metrics.user | quote }}
     - name: KAFKA_METRICS_PASSWORD
       valueFrom:
         secretKeyRef:
@@ -685,7 +685,7 @@ Init container definition for Kafka initialization
     {{- end }}
     {{- if and .context.Values.provisioning.enabled (regexFind "SASL" (upper .context.Values.listeners.client.protocol)) }}
     - name: KAFKA_PROVISIONING_USER
-      value: {{ .Values.sasl.provisioning.user | quote }}
+      value: {{ .context.Values.sasl.provisioning.user | quote }}
     - name: KAFKA_PROVISIONING_PASSWORD
       valueFrom:
         secretKeyRef:
