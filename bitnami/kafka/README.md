@@ -141,15 +141,15 @@ The command removes all the Kubernetes components associated with the chart and 
 | `auth.tls.jksKeystoreSAN`                         | The secret key from the `auth.tls.existingSecrets` containing the keystore with a SAN certificate                                                                                   | `""`                                |
 | `auth.tls.jksTruststore`                          | The secret key from the `auth.tls.existingSecrets` or `auth.tls.jksTruststoreSecret` containing the truststore                                                                      | `""`                                |
 | `auth.tls.endpointIdentificationAlgorithm`        | The endpoint identification algorithm to validate server hostname using server certificate                                                                                          | `https`                             |
-| `auth.zookeeper.tls.enabled`                      | Enable TLS for Zookeeper client connections.                                                                                                                                        | `false`                             |
+| `auth.tls.zookeeper.enabled`                      | Enable TLS for Zookeeper client connections.                                                                                                                                        | `false`                             |
 | `auth.zookeeper.tls.type`                         | Format to use for TLS certificates. Allowed types: `jks` and `pem`.                                                                                                                 | `jks`                               |
 | `auth.zookeeper.tls.verifyHostname`               | Hostname validation.                                                                                                                                                                | `true`                              |
 | `auth.zookeeper.tls.existingSecret`               | Name of the existing secret containing the TLS certificates for ZooKeeper client communications.                                                                                    | `""`                                |
 | `auth.zookeeper.tls.existingSecretKeystoreKey`    | The secret key from the  auth.zookeeper.tls.existingSecret containing the Keystore.                                                                                                 | `zookeeper.keystore.jks`            |
 | `auth.zookeeper.tls.existingSecretTruststoreKey`  | The secret key from the auth.zookeeper.tls.existingSecret containing the Truststore.                                                                                                | `zookeeper.truststore.jks`          |
-| `auth.zookeeper.tls.passwordsSecret`              | Existing secret containing Keystore and Truststore passwords.                                                                                                                       | `""`                                |
-| `auth.zookeeper.tls.passwordsSecretKeystoreKey`   | The secret key from the auth.zookeeper.tls.passwordsSecret containing the password for the Keystore.                                                                                | `keystore-password`                 |
-| `auth.zookeeper.tls.passwordsSecretTruststoreKey` | The secret key from the auth.zookeeper.tls.passwordsSecret containing the password for the Truststore.                                                                              | `truststore-password`               |
+| `auth.tls.zookeeper.passwordsSecret`              | Existing secret containing Keystore and Truststore passwords.                                                                                                                       | `""`                                |
+| `auth.tls.zookeeper.passwordsSecretKeystoreKey`   | The secret key from the auth.tls.zookeeper.passwordsSecret containing the password for the Keystore.                                                                                | `keystore-password`                 |
+| `auth.tls.zookeeper.passwordsSecretTruststoreKey` | The secret key from the auth.tls.zookeeper.passwordsSecret containing the password for the Truststore.                                                                              | `truststore-password`               |
 | `listeners`                                       | The address(es) the socket server listens on. Auto-calculated it's set to an empty array                                                                                            | `[]`                                |
 | `advertisedListeners`                             | The address(es) (hostname:port) the broker will advertise to producers and consumers. Auto-calculated it's set to an empty array                                                    | `[]`                                |
 | `listenerSecurityProtocolMap`                     | The protocol->listener mapping. Auto-calculated it's set to nil                                                                                                                     | `""`                                |
@@ -558,9 +558,9 @@ If you enabled SASL authentication on any listener, you can set the SASL credent
 - `auth.sasl.jaas.interBrokerUser`/`auth.sasl.jaas.interBrokerPassword`:  when enabling SASL authentication for inter-broker communications.
 - `auth.jaas.zookeeperUser`/`auth.jaas.zookeeperPassword`: In the case that the Zookeeper chart is deployed with SASL authentication enabled.
 
-In order to configure TLS authentication/encryption, you **can** create a secret per Kafka broker you have in the cluster containing the Java Key Stores (JKS) files: the truststore (`kafka.truststore.jks`) and the keystore (`kafka.keystore.jks`). Then, you need pass the secret names with the `auth.tls.existingSecrets` parameter when deploying the chart.
+In order to configure TLS authentication/encryption, you **can** create a secret per Kafka broker you have in the cluster containing the Java Key Stores (JKS) files: the truststore (`kafka.truststore.jks`) and the keystore (`kafka.keystore.jks`). Then, you need pass the secret names with the `tls.existingSecret` parameter when deploying the chart.
 
-> **Note**: If the JKS files are password protected (recommended), you will need to provide the password to get access to the keystores. To do so, use the `auth.tls.password` parameter to provide your password.
+> **Note**: If the JKS files are password protected (recommended), you will need to provide the password to get access to the keystores. To do so, use the `tls.password` parameter to provide your password.
 
 For instance, to configure TLS authentication on a Kafka cluster with 2 Kafka brokers use the commands below to create the secrets:
 
@@ -573,26 +573,24 @@ kubectl create secret generic kafka-jks-1 --from-file=kafka.truststore.jks=./kaf
 
 If, for some reason (like using Cert-Manager) you can not use the default JKS secret scheme, you can use the additional parameters:
 
-- `auth.tls.jksTruststoreSecret` to define additional secret, where the `kafka.truststore.jks` is being kept. The truststore password **must** be the same as in `auth.tls.password`
-- `auth.tls.jksTruststore` to overwrite the default value of the truststore key (`kafka.truststore.jks`).
-- `auth.tls.jksKeystoreSAN` if you want to use a SAN certificate for your brokers. Setting this parameter would mean that the chart expects a existing key in the `auth.tls.jksTruststoreSecret` with the `auth.tls.jksKeystoreSAN` value and use this as a keystore for **all** brokers
+- `tls.jksTruststoreSecret` to define additional secret, where the `kafka.truststore.jks` is being kept. The truststore password **must** be the same as in `tls.password`
+- `tls.jksTruststore` to overwrite the default value of the truststore key (`kafka.truststore.jks`).
 
-> **Note**: If you are using cert-manager, particularly when an ACME issuer is used, the `ca.crt` field is not put in the `Secret` that cert-manager creates. To handle this, the `auth.tls.pemChainIncluded` property can be set to `true` and the initContainer created by this Chart will attempt to extract the intermediate certs from the `tls.crt` field of the secret (which is a PEM chain)
-> **Note**: The truststore/keystore from above **must** be protected with the same password as in `auth.tls.password`
+> **Note**: If you are using cert-manager, particularly when an ACME issuer is used, the `ca.crt` field is not put in the `Secret` that cert-manager creates. To handle this, the `tls.pemChainIncluded` property can be set to `true` and the initContainer created by this Chart will attempt to extract the intermediate certs from the `tls.crt` field of the secret (which is a PEM chain)
+> **Note**: The truststore/keystore from above **must** be protected with the same password as in `tls.password`
 
 You can deploy the chart with authentication using the following parameters:
 
 ```console
 replicaCount=2
-auth.clientProtocol=sasl
-auth.interBrokerProtocol=tls
-auth.tls.existingSecrets[0]=kafka-jks-0
-auth.tls.existingSecrets[1]=kafka-jks-1
-auth.tls.password=jksPassword
-auth.sasl.jaas.clientUsers[0]=brokerUser
-auth.sasl.jaas.clientPasswords[0]=brokerPassword
-auth.sasl.jaas.zookeeperUser=zookeeperUser
-auth.sasl.jaas.zookeeperPassword=zookeeperPassword
+listeners.client.client.protocol=SASL
+listeners.client.interbroker.protocol=TLS
+tls.existingSecret=kafka-jks
+tls.password=jksPassword
+sasl.client.users[0]=brokerUser
+sasl.client.passwords[0]=brokerPassword
+sasl.zookeeper.user=zookeeperUser
+sasl.zookeeper.password=zookeeperPassword
 zookeeper.auth.enabled=true
 zookeeper.auth.serverUsers=zookeeperUser
 zookeeper.auth.serverPasswords=zookeeperPassword
@@ -604,15 +602,14 @@ You can deploy the chart with AclAuthorizer using the following parameters:
 
 ```console
 replicaCount=2
-auth.clientProtocol=sasl
-auth.interBrokerProtocol=sasl_tls
-auth.tls.existingSecrets[0]=kafka-jks-0
-auth.tls.existingSecrets[1]=kafka-jks-1
-auth.tls.password=jksPassword
-auth.sasl.jaas.clientUsers[0]=brokerUser
-auth.sasl.jaas.clientPasswords[0]=brokerPassword
-auth.sasl.jaas.zookeeperUser=zookeeperUser
-auth.sasl.jaas.zookeeperPassword=zookeeperPassword
+listeners.client.protocol=SASL
+listeners.interbroker.protocol=SASL_TLS
+tls.existingSecret=kafka-jks-0
+tls.password=jksPassword
+sasl.client.users[0]=brokerUser
+sasl.client.passwords[0]=brokerPassword
+sasl.zookeeper.user=zookeeperUser
+sasl.zookeeper.password=zookeeperPassword
 zookeeper.auth.enabled=true
 zookeeper.auth.serverUsers=zookeeperUser
 zookeeper.auth.serverPasswords=zookeeperPassword
@@ -625,11 +622,11 @@ superUsers=User:admin
 
 If you are using Kafka ACLs, you might encounter in kafka-authorizer.log the following event: `[...] Principal = User:ANONYMOUS is Allowed Operation [...]`.
 
-By setting the following parameter: `auth.clientProtocol=mtls`, it will set the configuration in Kafka to `ssl.client.auth=required`. This option will require the clients to authenticate to Kafka brokers.
+By setting the following parameter: `listeners.client.protocol=SSL` and `listener.client.sslClientAuth=required`, Kafka will require the clients to authenticate to Kafka brokers via certificate.
 
 As result, we will be able to see in kafka-authorizer.log the events specific Subject: `[...] Principal = User:CN=kafka,OU=...,O=...,L=...,C=..,ST=... is [...]`.
 
-If you also enable exposing metrics using the Kafka exporter, and you are using `sasl_tls`, `tls`, or `mtls` authentication protocols, you need to mount the CA certificated used to sign the brokers certificates in the exporter so it can validate the Kafka brokers. To do so, create a secret containing the CA, and set the `metrics.certificatesSecret` parameter. As an alternative, you can skip TLS validation using extra flags:
+If you also enable exposing metrics using the Kafka exporter, and you are using `SSL` or `SASL_SSL` security protocols protocols, you need to mount the CA certificated used to sign the brokers certificates in the exporter so it can validate the Kafka brokers. To do so, create a secret containing the CA, and set the `metrics.certificatesSecret` parameter. As an alternative, you can skip TLS validation using extra flags:
 
 ```console
 metrics.kafka.extraFlags={tls.insecure-skip-tls-verify: ""}
@@ -649,8 +646,10 @@ You have two alternatives to use LoadBalancer services:
 
 ```console
 externalAccess.enabled=true
-externalAccess.service.type=LoadBalancer
-externalAccess.service.ports.external=9094
+externalAccess.service.broker.type=LoadBalancer
+externalAccess.service.controller.type=LoadBalancer
+externalAccess.service.broker.ports.external=9094
+externalAccess.service.controller.ports.external=9094
 externalAccess.autoDiscovery.enabled=true
 serviceAccount.create=true
 rbac.create=true
@@ -662,10 +661,14 @@ Note: This option requires creating RBAC rules on clusters where RBAC policies a
 
 ```console
 externalAccess.enabled=true
-externalAccess.service.type=LoadBalancer
-externalAccess.service.ports.external=9094
-externalAccess.service.loadBalancerIPs[0]='external-ip-1'
-externalAccess.service.loadBalancerIPs[1]='external-ip-2'}
+externalAccess.service.controller.type=LoadBalancer
+externalAccess.service.controller.ports.external=9094
+externalAccess.service.controller.loadBalancerIPs[0]='external-ip-1'
+externalAccess.service.controller.loadBalancerIPs[1]='external-ip-2'
+externalAccess.service.broker.type=LoadBalancer
+externalAccess.service.broker.ports.external=9094
+externalAccess.service.broker.loadBalancerIPs[0]='external-ip-3'
+externalAccess.service.broker.loadBalancerIPs[1]='external-ip-4'
 ```
 
 Note: You need to know in advance the load balancer IPs so each Kafka broker advertised listener is configured with it.
@@ -680,7 +683,8 @@ You have two alternatives to use NodePort services:
 
   ```console
   externalAccess.enabled=true
-  externalAccess.service.type=NodePort
+  externalAccess.controller.service.type=NodePort
+  externalAccess.broker.service.type=NodePort
   externalAccess.autoDiscovery.enabled=true
   serviceAccount.create=true
   rbac.create=true
@@ -692,23 +696,23 @@ You have two alternatives to use NodePort services:
 
   ```console
   externalAccess.enabled=true
-  externalAccess.service.type=NodePort
-  externalAccess.service.nodePorts[0]='node-port-1'
-  externalAccess.service.nodePorts[1]='node-port-2'
+  externalAccess.controller.service.type=NodePort
+  externalAccess.controller.service.nodePorts[0]='node-port-1'
+  externalAccess.controller.service.nodePorts[1]='node-port-2'
   ```
 
   Note: You need to know in advance the node ports that will be exposed so each Kafka broker advertised listener is configured with it.
 
   The pod will try to get the external ip of the node using `curl -s https://ipinfo.io/ip` unless `externalAccess.service.domain` or `externalAccess.service.useHostIPs` is provided.
 
-- Option C) Manually specify distinct external IPs
+- Option C) Manually specify distinct external IPs (using controller+broker nodes)
 
   ```console
   externalAccess.enabled=true
-  externalAccess.service.type=NodePort
-  externalAccess.service.externalIPs[0]='172.16.0.20'
-  externalAccess.service.externalIPs[1]='172.16.0.21'
-  externalAccess.service.externalIPs[2]='172.16.0.22'
+  externalAccess.controller.service.type=NodePort
+  externalAccess.controller.service.externalIPs[0]='172.16.0.20'
+  externalAccess.controller.service.externalIPs[1]='172.16.0.21'
+  externalAccess.controller.service.externalIPs[2]='172.16.0.22'
   ```
 
   Note: You need to know in advance the available IP of your cluster that will be exposed so each Kafka broker advertised listener is configured with it.
@@ -719,18 +723,21 @@ Note: This option requires that an ingress is deployed within your cluster
 
 ```console
 externalAccess.enabled=true
-externalAccess.service.type=ClusterIP
-externalAccess.service.ports.external=9094
-externalAccess.service.domain='ingress-ip'
+externalAccess.controller.service.type=ClusterIP
+externalAccess.controller.service.ports.external=9094
+externalAccess.controller.service.domain='ingress-ip'
+externalAccess.broker.service.type=ClusterIP
+externalAccess.broker.service.ports.external=9094
+externalAccess.broker.service.domain='ingress-ip'
 ```
 
 Note: the deployed ingress must contain the following block:
 
 ```console
 tcp:
-  9094: "{{ .Release.Namespace }}/{{ include "kafka.fullname" . }}-0-external:9094"
-  9095: "{{ .Release.Namespace }}/{{ include "kafka.fullname" . }}-1-external:9094"
-  9096: "{{ .Release.Namespace }}/{{ include "kafka.fullname" . }}-2-external:9094"
+  9094: "{{ include "common.names.namespace" . }}/{{ include "common.names.fullname" . }}-0-external:9094"
+  9095: "{{ include "common.names.namespace" . }}/{{ include "common.names.fullname" . }}-1-external:9094"
+  9096: "{{ include "common.names.namespace" . }}/{{ include "common.names.fullname" . }}-2-external:9094"
 ```
 
 #### Name resolution with External-DNS
@@ -776,7 +783,7 @@ extraDeploy:
     apiVersion: apps/v1
     kind: Deployment
     metadata:
-      name: {{ include "kafka.fullname" . }}-connect
+      name: {{ include "common.names.fullname" . }}-connect
       labels: {{- include "common.labels.standard" . | nindent 4 }}
         app.kubernetes.io/component: connector
     spec:
@@ -802,17 +809,17 @@ extraDeploy:
           volumes:
             - name: configuration
               configMap:
-                name: {{ include "kafka.fullname" . }}-connect
+                name: {{ include "common.names.fullname" . }}-connect
   - |
     apiVersion: v1
     kind: ConfigMap
     metadata:
-      name: {{ include "kafka.fullname" . }}-connect
+      name: {{ include "common.names.fullname" . }}-connect
       labels: {{- include "common.labels.standard" . | nindent 4 }}
         app.kubernetes.io/component: connector
     data:
       connect-standalone.properties: |-
-        bootstrap.servers = {{ include "kafka.fullname" . }}-0.{{ include "kafka.fullname" . }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}
+        bootstrap.servers = {{ include "common.names.fullname" . }}-0.{{ include "common.names.fullname" . }}-headless.{{ include "common.names.namespace" . }}.svc.{{ .Values.clusterDomain }}:{{ .Values.service.port }}
         ...
       mongodb.properties: |-
         connection.uri=mongodb://root:password@mongodb-hostname:27017
@@ -821,7 +828,7 @@ extraDeploy:
     apiVersion: v1
     kind: Service
     metadata:
-      name: {{ include "kafka.fullname" . }}-connect
+      name: {{ include "common.names.fullname" . }}-connect
       labels: {{- include "common.labels.standard" . | nindent 4 }}
         app.kubernetes.io/component: connector
     spec:
