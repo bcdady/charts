@@ -299,38 +299,18 @@ data:
       {{- end }}
     }
     {{- end }}
-    {{- if and (include "kafka.saslEnabled" .) (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) }}
-    configure_scram_credentials() {
-      local users=()
-      local passwords=()
-      if [[ "${KAFKA_CLIENT_USERS:-}"]]; then
-        read -r -a client_users <<<"$(tr ',;' ' ' <<<"${KAFKA_CLIENT_USERS:-}")"
-        read -r -a client_passwords <<<"$(tr ',;' ' ' <<<"${KAFKA_CLIENT_PASSWORDS:-}")"
-        for ((i = 0; i < ${#client_users[@]}; i++)); do
-          users+=("${client_users[i]}")
-          passwords+=("${client_passwords[i]}")
+    {{- if and (or .Values.zookeeper.enabled .Values.externalZookeeper.servers) (include "kafka.saslEnabled" .) (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) }}
+    configure_zookeeper_scram_users() {
+        read -r -a users <<<"$(tr ',;' ' ' <<<"${KAFKA_CLIENT_USERS:-}")"
+        read -r -a passwords <<<"$(tr ',;' ' ' <<<"${KAFKA_CLIENT_PASSWORDS:-}")"
+        if [[ "${KAFKA_INTER_BROKER_USER:-}"]]; then
+          users+=("$KAFKA_INTER_BROKER_USER")
+          passwords+=("$KAFKA_INTER_BROKER_PASSWORD")
+        fi
+        for ((i = 0; i < ${#users[@]}; i++)); do
+            # Ref: https://docs.confluent.io/current/kafka/authentication_sasl/authentication_sasl_scram.html#sasl-scram-overview
+            kafka-configs.sh --zookeeper "$KAFKA_CFG_ZOOKEEPER_CONNECT" --alter --add-config "SCRAM-SHA-256=[iterations=8192,password=${passwords[i]}],SCRAM-SHA-512=[password=${passwords[i]}]" --entity-type users --entity-name "${users[i]}"
         done
-      fi
-      if [[ "${KAFKA_CONTROLLER_USER:-}"]]; then
-        users+=("$KAFKA_CONTROLLER_USER")
-        passwords+=("$KAFKA_CONTROLLER_PASSWORD")
-      fi
-      if [[ "${KAFKA_INTER_BROKER_USER:-}"]]; then
-        users+=("$KAFKA_INTER_BROKER_USER")
-        passwords+=("$KAFKA_INTER_BROKER_PASSWORD")
-      fi
-      if [[ "${KAFKA_METRICS_USER:-}"]]; then
-        users+=("$KAFKA_METRICS_USER")
-        passwords+=("$KAFKA_METRICS_PASSWORD")
-      fi
-      if [[ "${KAFKA_PROVISIONING_USER:-}"]]; then
-        users+=("$KAFKA_PROVISIONING_USER")
-        passwords+=("$KAFKA_PROVISIONING_PASSWORD")
-      fi
-
-      for ((i = 0; i < ${#client_users[@]}; i++)); do
-        debug_execute kafka-configs.sh --zookeeper "$KAFKA_CFG_ZOOKEEPER_CONNECT" --alter --add-config "SCRAM-SHA-256=[iterations=8192,password=${passwords[i]}],SCRAM-SHA-512=[password=${passwords[i]}]" --entity-type users --entity-name "${users[i]}"
-      done
     }
     {{- end }}
 
@@ -382,8 +362,8 @@ data:
     {{- if and .Values.tls.zookeeper.enabled .Values.tls.zookeeper.existingSecret }}
     configure_zookeeper_tls
     {{- end }}
-    {{- if and (include "kafka.saslEnabled" .) (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) }}
-    configure_scram_credentials
+    {{- if and (or .Values.zookeeper.enabled .Values.externalZookeeper.servers) (include "kafka.saslEnabled" .) (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) }}
+    configure_zookeeper_scram_users
     {{- end }}
     {{- include "common.tplvalues.render" ( dict "value" .Values.extraInit "context" $ ) | nindent 4 }}
 

@@ -154,6 +154,9 @@ spec:
                   name: {{ printf "%s-kraft-cluster-id" (include "common.names.fullname" .) }}
                   key: kraft-cluster-id
             {{- end }}
+            {{- if and (include "kafka.saslEnabled" .) (or (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) (regexFind "SCRAM" (upper .Values.sasl.controllerMechanism)) (regexFind "SCRAM" (upper .Values.sasl.interBrokerMechanism))) }}
+
+            {{- end }}
             {{- if .Values.metrics.jmx.enabled }}
             - name: JMX_PORT
               value: "5555"

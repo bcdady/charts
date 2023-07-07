@@ -666,31 +666,11 @@ Init container definition for Kafka initialization
           key: inter-broker-password
     {{- end }}
     {{- if and .context.Values.kraft.enabled (regexFind "SASL" (upper .context.Values.listeners.controller.protocol)) }}
-    - name: KAFKA_CONTROLLER_USER
-      value: {{ .context.Values.sasl.controller.user | quote }}
     - name: KAFKA_CONTROLLER_PASSWORD
       valueFrom:
         secretKeyRef:
           name: {{ include "kafka.saslSecretName" .context }}
           key: controller-password
-    {{- end }}
-    {{- if and .context.Values.metrics.kafka.enabled (regexFind "SASL" (upper .context.Values.listeners.client.protocol)) }}
-    - name: KAFKA_METRICS_USER
-      value: {{ .context.Values.sasl.metrics.user | quote }}
-    - name: KAFKA_METRICS_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: {{ include "kafka.saslSecretName" .context }}
-          key: metrics-password
-    {{- end }}
-    {{- if and .context.Values.provisioning.enabled (regexFind "SASL" (upper .context.Values.listeners.client.protocol)) }}
-    - name: KAFKA_PROVISIONING_USER
-      value: {{ .context.Values.sasl.provisioning.user | quote }}
-    - name: KAFKA_PROVISIONING_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: {{ include "kafka.saslSecretName" .context }}
-          key: provisioning-password
     {{- end }}
     {{- if (include "kafka.sslEnabled" .context )  }}
     - name: KAFKA_TLS_TYPE

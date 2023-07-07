@@ -205,7 +205,7 @@ spec:
               value: {{ printf "%s:%d" (include "common.names.fullname" .) (.Values.service.ports.client | int64) }}
             {{- if regexFind "SASL" (upper .Values.listeners.client.protocol) }}
             - name: SASL_USERNAME
-              value: {{ .Values.sasl.metrics.user | quote }}
+              value: {{ .Values.sasl.provisioning.user | quote }}
             - name: SASL_USER_PASSWORD
               valueFrom:
                 secretKeyRef:
