@@ -128,13 +128,13 @@ spec:
           {{- if regexFind "SASL" (upper .Values.listeners.client.protocol) }}
           env:
             - name: SASL_USERNAME
-              value: {{ .Values.sasl.metrics.user | quote }}
+              value: {{ index .Values.sasl.client.users 0 | quote }}
             - name: SASL_USER_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "kafka.saslSecretName" . }}
-                  key: metrics-user-password
-          {{- end }}
+                  name: {{ include "kafka.jaasSecretName" . }}
+                  key: system-user-password
+            {{- end }}
           ports:
             - name: metrics
               containerPort: {{ .Values.metrics.kafka.containerPorts.metrics }}

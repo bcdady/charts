@@ -37,6 +37,10 @@ spec:
       port: {{ .Values.service.ports.interbroker }}
       protocol: TCP
       targetPort: interbroker
+    - name: tcp-client
+      port: {{ .Values.service.ports.client }}
+      protocol: TCP
+      targetPort: client
   selector: {{- include "common.labels.matchLabels" . | nindent 4 }}
     app.kubernetes.io/component: broker-only
     app.kubernetes.io/part-of: kafka

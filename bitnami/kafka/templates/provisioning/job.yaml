@@ -205,12 +205,12 @@ spec:
               value: {{ printf "%s:%d" (include "common.names.fullname" .) (.Values.service.ports.client | int64) }}
             {{- if regexFind "SASL" (upper .Values.listeners.client.protocol) }}
             - name: SASL_USERNAME
-              value: {{ .Values.sasl.provisioning.user | quote }}
+              value: {{ index .Values.sasl.client.users 0 | quote }}
             - name: SASL_USER_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "kafka.saslSecretName" . }}
-                  key: provisioning-user-password
+                  name: {{ include "kafka.jaasSecretName" . }}
+                  key: system-user-password
             {{- end }}
             {{- if .Values.provisioning.extraEnvVars }}
             {{- include "common.tplvalues.render" ( dict "value" .Values.provisioning.extraEnvVars "context" $) | nindent 12 }}
