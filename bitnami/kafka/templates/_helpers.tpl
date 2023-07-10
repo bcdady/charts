@@ -491,6 +491,15 @@ ssl.truststore.location=/opt/bitnami/kafka/config/certs/kafka.truststore.jks
 ssl.client.auth={{ .Values.tls.sslClientAuth }}
 ssl.endpoint.identification.algorithm={{ .Values.tls.endpointIdentificationAlgorithm }}
 {{- end }}
+{{- if .Values.acl.authorizerClassName }}
+authorizer.class.name={{ .Values.acl.authorizerClassName }}
+{{- end }}
+{{- if .Values.acl.superUsers }}
+super.users={{ .Values.acl.superUsers }}
+{{- end }}
+{{- if not (empty .Values.acl.allowEveryoneIfNoAclFound) }}
+allow.everyone.if.no.acl.found={{ .Values.acl.allowEveryoneIfNoAclFound }}
+{{- end }}
 {{- if or .Values.zookeeper.enabled .Values.externalZookeeper.servers }}
 # Zookeeper configuration
 zookeeper.connect={{ include "kafka.zookeeperConnect" . }}
@@ -513,13 +522,9 @@ zookeeper.ssl.hostnameVerification={{ .Values.tls.zookeeper.verifyHostname }}
 #zookeeper.ssl.trustStore.password=
 {{- end }}
 {{- end }}
-
 {{- if (include "kafka.saslEnabled" .) }}
 # Listeners SASL JAAS configuration
 {{- $listeners := list .Values.listeners.client .Values.listeners.interbroker }}
-{{- if .Values.kraft.enabled }}
-{{- $listeners = append $listeners .Values.listeners.controller }}
-{{- end }}
 {{- range $i := .Values.listeners.extraListeners }}
 {{- $listeners = append $listeners $i }}
 {{- end }}
@@ -535,16 +540,9 @@ listener.name.{{lower $listener.name}}.ssl.client.auth={{ $listener.sslClientAut
   {{- $saslJaasConfig = append $saslJaasConfig (printf "username=\"%s\"" $.Values.sasl.interbroker.user) }}
   {{- $saslJaasConfig = append $saslJaasConfig (print "password=\"interbroker-password-placeholder\"") }}
   {{- end }}
-  {{- if eq $listener.name $.Values.listeners.controller.name }}
-  {{- $saslJaasConfig = append $saslJaasConfig (printf "username=\"%s\"" $.Values.sasl.controller.user) }}
-  {{- $saslJaasConfig = append $saslJaasConfig (print "password=\"controller-password-placeholder\"") }}
-  {{- end }}
   {{- if eq (upper $mechanism) "PLAIN" }}
-  {{- if regexFind "SASL" (upper $.Values.listeners.interbroker.protocol) }}
+  {{- if eq $listener.name $.Values.listeners.interbroker.name }}
   {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"interbroker-password-placeholder\"" $.Values.sasl.interbroker.user) }}
-  {{- end }}
-  {{- if regexFind "SASL" (upper $.Values.listeners.controller.protocol) }}
-  {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"controller-password-placeholder\"" $.Values.sasl.controller.user) }}
   {{- end }}
   {{- range $i, $user := $.Values.sasl.client.users }}
   {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"password-placeholder-%d\"" $user (int $i)) }}
@@ -558,9 +556,27 @@ listener.name.{{lower $listener.name}}.ssl.client.auth={{ $listener.sslClientAut
   {{- end }}
 listener.name.{{lower $listener.name}}.{{lower $mechanism}}.sasl.jaas.config={{ join " " $saslJaasConfig }};
 {{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.kraft.enabled }}
+{{- $listener := $.Values.listeners.controller }}
+{{- if and $listener.sslClientAuth (regexFind "SSL" (upper $listener.protocol)) }}
+listener.name.{{lower $listener.name}}.ssl.client.auth={{ $listener.sslClientAuth }}
+{{- end }}
+{{- if regexFind "SASL" (upper $listener.protocol) }}
+  {{- $mechanism := $.Values.sasl.controllerMechanism }}
+  {{- $securityModule := ternary "org.apache.kafka.common.security.plain.PlainLoginModule required" "org.apache.kafka.common.security.plain.ScramLoginModule required" (eq "PLAIN" (upper $mechanism)) }}
+  {{- $saslJaasConfig := list $securityModule }}
+  {{- $saslJaasConfig = append $saslJaasConfig (printf "username=\"%s\"" $.Values.sasl.controller.user) }}
+  {{- $saslJaasConfig = append $saslJaasConfig (print "password=\"controller-password-placeholder\"") }}
+  {{- if eq (upper $mechanism) "PLAIN" }}
+  {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"controller-password-placeholder\"" $.Values.sasl.controller.user) }}
+  {{- end }}
+listener.name.{{lower $listener.name}}.sasl.enabled.mechanisms={{upper $mechanism}}
+listener.name.{{lower $listener.name}}.{{lower $mechanism }}.sasl.jaas.config={{ join " " $saslJaasConfig }};
+{{- end }}
+{{- end }}
 # End of SASL JAAS configuration
-{{- end }}
-{{- end }}
 {{- end }}
 {{- end -}}
 
