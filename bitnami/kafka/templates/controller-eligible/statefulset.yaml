@@ -155,7 +155,33 @@ spec:
                   key: kraft-cluster-id
             {{- end }}
             {{- if and (include "kafka.saslEnabled" .) (or (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) (regexFind "SCRAM" (upper .Values.sasl.controllerMechanism)) (regexFind "SCRAM" (upper .Values.sasl.interBrokerMechanism))) }}
-
+            {{- if and (include "kafka.client.saslEnabled" . ) .Values.sasl.client.users }}
+            - name: KAFKA_CLIENT_USERS
+              value: {{ join "," .Values.sasl.client.users | quote }}
+            - name: KAFKA_CLIENT_PASSWORDS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafka.saslSecretName" . }}
+                  key: client-passwords
+            {{- end }}
+            {{- if regexFind "SASL" (upper .Values.listeners.interbroker.protocol) }}
+            - name: KAFKA_INTER_BROKER_USER
+              value: {{ .Values.sasl.interbroker.user | quote }}
+            - name: KAFKA_INTER_BROKER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafka.saslSecretName" . }}
+                  key: inter-broker-password
+            {{- end }}
+            {{- if and .Values.kraft.enabled (regexFind "SASL" (upper .Values.listeners.controller.protocol)) }}
+            - name: KAFKA_CONTROLLER_USER
+              value: {{ .Values.sasl.controller.user | quote }}
+            - name: KAFKA_CONTROLLER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kafka.saslSecretName" . }}
+                  key: controller-password
+            {{- end }}
             {{- end }}
             {{- if .Values.metrics.jmx.enabled }}
             - name: JMX_PORT
@@ -188,11 +214,11 @@ spec:
           {{- end }}
           ports:
             {{- if .Values.kraft.enabled }}
-            - targetPort: controller
+            - name: controller
               containerPort: {{ .Values.listeners.controller.port }}
             {{- end }}
             {{- if and (not .Values.kraft.enabled) (not .Values.controller.controllerOnly) }}
-            - targetPort: client
+            - name: client
               containerPort: {{ .Values.listeners.client.port }}
             - name: interbroker
               containerPort: {{ .Values.listeners.interbroker.port }}
@@ -213,21 +239,21 @@ spec:
           {{- else if .Values.controller.livenessProbe.enabled }}
           livenessProbe: {{- include "common.tplvalues.render" (dict "value" (omit .Values.controller.livenessProbe "enabled") "context" $) | nindent 12 }}
             tcpSocket:
-              port: {{ ternary .Values.listeners.controller.port .Values.listeners.client.port .Values.kraft.enabled  }}
+              port: {{ ternary "controller" "client" .Values.kraft.enabled  }}
           {{- end }}
           {{- if .Values.controller.customReadinessProbe }}
           readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.controller.customReadinessProbe "context" $) | nindent 12 }}
           {{- else if .Values.controller.readinessProbe.enabled }}
           readinessProbe: {{- include "common.tplvalues.render" (dict "value" (omit .Values.controller.readinessProbe "enabled") "context" $) | nindent 12 }}
             tcpSocket:
-              port: {{ ternary .Values.listeners.controller.port .Values.listeners.client.port .Values.kraft.enabled  }}
+              port: {{ ternary "controller" "client" .Values.kraft.enabled  }}
           {{- end }}
           {{- if .Values.controller.customStartupProbe }}
           startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.controller.customStartupProbe "context" $) | nindent 12 }}
           {{- else if .Values.controller.startupProbe.enabled }}
           startupProbe: {{- include "common.tplvalues.render" (dict "value" (omit .Values.controller.startupProbe "enabled") "context" $) | nindent 12 }}
             tcpSocket:
-              port: {{ ternary .Values.listeners.controller.port .Values.listeners.client.port .Values.kraft.enabled  }}
+              port: {{ ternary "controller" "client" .Values.kraft.enabled  }}
           {{- end }}
           {{- end }}
           {{- if .Values.controller.lifecycleHooks }}

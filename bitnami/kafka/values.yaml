@@ -124,7 +124,8 @@ existingLog4jConfigMap: ""
 ## @param heapOpts Kafka Java Heap size
 ##
 heapOpts: -Xmx1024m -Xms1024m
-## @param zookeeperMigrationMode If set to true, enable the Zookeeper migration mode. This allows configuring both kraft.enabled=true and zookeeper.enabled=true, in order to perform the migration of the metadata.
+## @param zookeeperMigrationMode If set to true, enable the Zookeeper migration mode.
+## This allows configuring both kraft and zookeeper modes simultaneously in order to perform the migration of the Kafka metadata.
 ## Ref. https://docs.confluent.io/platform/current/installation/migrate-zk-kraft.html
 ##
 zookeeperMigrationMode: false
@@ -354,11 +355,21 @@ tls:
     ##
     passwordsSecret: ""
     ## @param tls.zookeeper.passwordsSecretKeystoreKey The secret key from the tls.zookeeper.passwordsSecret containing the password for the Keystore.
+    ## If no keystore password is included in the passwords secret, set this value to an empty string.
     ##
     passwordsSecretKeystoreKey: keystore-password
     ## @param tls.zookeeper.passwordsSecretTruststoreKey The secret key from the tls.zookeeper.passwordsSecret containing the password for the Truststore.
+    ## If no truststore password is included in the passwords secret, set this value to an empty string.
     ##
     passwordsSecretTruststoreKey: truststore-password
+    ## @param tls.keystorePassword Password to access the JKS keystore when it is password-protected. Ignored when 'tls.passwordsSecret' is provided.
+    ## When using tls.type=PEM, the generated keystore will use this password or randomly generate one.
+    ##
+    keystorePassword: ""
+    ## @param tls.truststorePassword Password to access the JKS truststore when it is password-protected. Ignored when 'tls.passwordsSecret' is provided.
+    ## When using tls.type=PEM, the generated keystore will use this password or randomly generate one.
+    ##
+    truststorePassword: ""
 
 ## @section Kafka ACL settings
 ## Kafka ACL authorization settings. Ref.: https://docs.confluent.io/platform/current/kafka/authorization.html
@@ -652,12 +663,10 @@ controller:
   ##
   schedulerName: ""
   ## @param controller.updateStrategy.type Kafka statefulset strategy type
-  ## @param controller.updateStrategy.rollingUpdate Kafka statefulset rolling update configuration parameters
   ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
   ##
   updateStrategy:
     type: RollingUpdate
-    rollingUpdate: {}
   ## @param controller.extraVolumes Optionally specify extra list of additional volumes for the Kafka pod(s)
   ## e.g:
   ## extraVolumes:
@@ -1007,12 +1016,10 @@ broker:
   ##
   schedulerName: ""
   ## @param broker.updateStrategy.type Kafka statefulset strategy type
-  ## @param broker.updateStrategy.rollingUpdate Kafka statefulset rolling update configuration parameters
   ## ref: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#update-strategies
   ##
   updateStrategy:
     type: RollingUpdate
-    rollingUpdate: {}
   ## @param broker.extraVolumes Optionally specify extra list of additional volumes for the Kafka pod(s)
   ## e.g:
   ## extraVolumes:
@@ -2209,9 +2216,10 @@ kraft:
   ## @param kraft.enabled Switch to enable or disable the KRaft mode for Kafka
   ##
   enabled: true
-  ## @param kraft.clusterId Kafka ClusterID. You must set it if your cluster contains more than one node. If not set, it will use the Release.Name
-  ## Generate with `cat /proc/sys/kernel/random/uuid | tr -d '-' | base64 | cut -b 1-22`. Run `export LC_ALL=C` before if you generate it on MacOS.
-  ## Example: k2yipv1sRue7z2_Y3o976A
+  ## @param kraft.clusterId Kafka Kraft cluster ID. If not set, a random cluster ID will be generated the first time Kraft is initialized.
+  ## NOTE: Already initialized Kafka nodes will use cluster ID stored in their persisted storage.
+  ## If reusing existing PVCs or migrating from Zookeeper mode, make sure the cluster ID is set matching the stored cluster ID, otherwise new nodes will fail to join the cluster.
+  ## In case the cluster ID stored in the secret does not match the value stored in /bitnami/kafka/data/meta.properties, remove the secret and upgrade the chart setting the correct value.
   ##
   clusterId: ""
   ## @param kraft.controllerQuorumVoters Override the Kafka controller quorum voters of the Kafka Kraft cluster. If not set, it will be automatically configured to use all controller-elegible nodes.

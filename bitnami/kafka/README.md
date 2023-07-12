@@ -870,6 +870,35 @@ You can enable this initContainer by setting `volumePermissions.enabled` to `tru
 
 Find more information about how to deal with common errors related to Bitnami's Helm charts in [this troubleshooting guide](https://docs.bitnami.com/general/how-to/troubleshoot-helm-chart-issues).
 
+## Migrating from Zookeeper (Early access)
+
+This guide is an adaptation from upstream documentation: [Migrate from ZooKeeper to KRaft](https://docs.confluent.io/platform/current/installation/migrate-zk-kraft.html)
+
+1. Obtain your cluster ID from Zookeeper:
+
+```console
+$ kubectl exec -it <your-zookeeper-pod> -- bash
+I have no name!@zookeeper-0:/$ zkCli.sh
+...
+[zk: localhost:2181(CONNECTED) 0] get /cluster/id
+{"version":"1","id":"wxTQvO70QkGoa4Ik0i2iHg"}
+```
+
+1. Next step, add at least one Kraft controller-only node to your deployment. The Kraft controllers will migrate the data from your Kafka ZkBroker to Kraft mode.
+To do soAdd the following values to your deployment when upgrading:
+
+```yaml
+controller:
+  replicaCount: 1
+  controllerOnly: true
+  zookeeperMigrationMode: true
+kraft:
+  enabled: true
+  clusterId: "<your_cluster_id>"
+zookeeper:
+  enabled: true
+```
+
 ## Upgrading
 
 ### To 22.0.0
