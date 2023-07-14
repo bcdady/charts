@@ -305,20 +305,6 @@ data:
       {{- end }}
     }
     {{- end }}
-    {{- if and (or .Values.zookeeper.enabled .Values.externalZookeeper.servers) (include "kafka.saslEnabled" .) (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) }}
-    configure_zookeeper_scram_users() {
-        read -r -a users <<<"$(tr ',;' ' ' <<<"${KAFKA_CLIENT_USERS:-}")"
-        read -r -a passwords <<<"$(tr ',;' ' ' <<<"${KAFKA_CLIENT_PASSWORDS:-}")"
-        if [[ "${KAFKA_INTER_BROKER_USER:-}"]]; then
-          users+=("$KAFKA_INTER_BROKER_USER")
-          passwords+=("$KAFKA_INTER_BROKER_PASSWORD")
-        fi
-        for ((i = 0; i < ${#users[@]}; i++)); do
-            # Ref: https://docs.confluent.io/current/kafka/authentication_sasl/authentication_sasl_scram.html#sasl-scram-overview
-            kafka-configs.sh --zookeeper "$KAFKA_CFG_ZOOKEEPER_CONNECT" --alter --add-config "SCRAM-SHA-256=[iterations=8192,password=${passwords[i]}],SCRAM-SHA-512=[password=${passwords[i]}]" --entity-type users --entity-name "${users[i]}"
-        done
-    }
-    {{- end }}
 
     {{- if .Values.externalAccess.autoDiscovery.enabled }}
     # Wait for autodiscovery to finish
@@ -335,15 +321,18 @@ data:
     POD_ROLE=$(echo "$MY_POD_NAME" | rev | cut -d'-' -f 2 | rev)
 
     # Configure node.id and/or broker.id
-    if [[ -f "${KAFKA_VOLUME_DIR}/meta.properties" ]]; then
-        {{- if .Values.kraft.enabled }}
-        ID="$(grep "node.id" "${KAFKA_VOLUME_DIR}/meta.properties" | awk -F '=' '{print $2}')"
-        kafka_conf_set "$KAFKA_CONFIG_FILE" "node.id" "$ID"
-        {{- end }}
-        {{- if or .Values.zookeeper.enabled .Values.externalZookeeper.servers }}
-        ID="$(grep "broker.id" "${KAFKA_VOLUME_DIR}/meta.properties" | awk -F '=' '{print $2}')"
-        kafka_conf_set "$KAFKA_CONFIG_FILE" "broker.id" "$ID"
-        {{- end }}
+    if [[ -f "/bitnami/kafka/data/meta.properties" ]]; then
+        if grep -q "broker.id" /bitnami/kafka/data/meta.properties; then
+          ID="$(grep "broker.id" /bitnami/kafka/data/meta.properties | awk -F '=' '{print $2}')"
+          {{- if or (not .Values.broker.zookeeperMigrationMode) (and (not .Values.zookeeper.enabled) (not .Values.externalZookeeper.servers)) }}
+          kafka_conf_set "$KAFKA_CONFIG_FILE" "node.id" "$ID"
+          {{- else }}
+          kafka_conf_set "$KAFKA_CONFIG_FILE" "broker.id" "$ID"
+          {{- end }}
+        else
+          ID="$(grep "node.id" /bitnami/kafka/data/meta.properties | awk -F '=' '{print $2}')"
+          kafka_conf_set "$KAFKA_CONFIG_FILE" "node.id" "$ID"
+        fi
     else
         ID=$((POD_ID + KAFKA_MIN_ID))
         {{- if .Values.kraft.enabled }}
@@ -367,9 +356,6 @@ data:
     {{- end }}
     {{- if and .Values.tls.zookeeper.enabled .Values.tls.zookeeper.existingSecret }}
     configure_zookeeper_tls
-    {{- end }}
-    {{- if and (or .Values.zookeeper.enabled .Values.externalZookeeper.servers) (include "kafka.saslEnabled" .) (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) }}
-    configure_zookeeper_scram_users
     {{- end }}
     {{- include "common.tplvalues.render" ( dict "value" .Values.extraInit "context" $ ) | nindent 4 }}
 

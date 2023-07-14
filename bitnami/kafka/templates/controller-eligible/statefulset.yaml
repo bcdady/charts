@@ -3,6 +3,8 @@ Copyright VMware, Inc.
 SPDX-License-Identifier: APACHE-2.0
 */}}
 
+{{- $replicaCount := int .Values.controller.replicaCount }}
+{{- if and .Values.kraft.enabled (gt $replicaCount 0) }}
 apiVersion: {{ include "common.capabilities.statefulset.apiVersion" . }}
 kind: StatefulSet
 metadata:
@@ -155,6 +157,8 @@ spec:
                   key: kraft-cluster-id
             {{- end }}
             {{- if and (include "kafka.saslEnabled" .) (or (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) (regexFind "SCRAM" (upper .Values.sasl.controllerMechanism)) (regexFind "SCRAM" (upper .Values.sasl.interBrokerMechanism))) }}
+            - name: KAFKA_KRAFT_BOOTSTRAP_SCRAM_USERS
+              value: "true"
             {{- if and (include "kafka.client.saslEnabled" . ) .Values.sasl.client.users }}
             - name: KAFKA_CLIENT_USERS
               value: {{ join "," .Values.sasl.client.users | quote }}
@@ -431,3 +435,4 @@ spec:
         {{- end -}}
     {{- end }}
   {{- end }}
+{{- end }}

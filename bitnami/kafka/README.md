@@ -874,32 +874,144 @@ Find more information about how to deal with common errors related to Bitnami's 
 
 This guide is an adaptation from upstream documentation: [Migrate from ZooKeeper to KRaft](https://docs.confluent.io/platform/current/installation/migrate-zk-kraft.html)
 
-1. Obtain your cluster ID from Zookeeper:
+1. Retrieve the cluster ID from Zookeeper:
 
-```console
-$ kubectl exec -it <your-zookeeper-pod> -- bash
-I have no name!@zookeeper-0:/$ zkCli.sh
-...
-[zk: localhost:2181(CONNECTED) 0] get /cluster/id
-{"version":"1","id":"wxTQvO70QkGoa4Ik0i2iHg"}
-```
+    ```console
+    $ kubectl exec -it <your-zookeeper-pod> -- zkCli.sh get /cluster/id
+    /opt/bitnami/java/bin/java
+    Connecting to localhost:2181
 
-1. Next step, add at least one Kraft controller-only node to your deployment. The Kraft controllers will migrate the data from your Kafka ZkBroker to Kraft mode.
-To do soAdd the following values to your deployment when upgrading:
+    WATCHER::
 
-```yaml
-controller:
-  replicaCount: 1
-  controllerOnly: true
-  zookeeperMigrationMode: true
-kraft:
-  enabled: true
-  clusterId: "<your_cluster_id>"
-zookeeper:
-  enabled: true
-```
+    WatchedEvent state:SyncConnected type:None path:null
+    {"version":"1","id":"TEr3HVPvTqSWixWRHngP5g"}
+    ```
+
+2. Deploy at least one Kraft controller-only in your deployment and enable `zookeeperMigrationMode=true`. The Kraft controllers will migrate the data from your Kafka ZkBroker to Kraft mode.
+
+    To do so add the following values to your Zookeeper deployment when upgrading:
+
+    ```yaml
+    controller:
+      replicaCount: 1
+      controllerOnly: true
+      zookeeperMigrationMode: true
+      # If needed, set controllers minID to avoid conflict with your ZK brokers' ids.
+      # minID: 0
+    broker:
+      zookeeperMigrationMode: true
+    kraft:
+      enabled: true
+      clusterId: "<your_cluster_id>"
+    ```
+
+3. Wait until until all brokers are ready. You should see the following log in the broker logs:
+
+    ```console
+    INFO [KafkaServer id=100] Finished catching up on KRaft metadata log, requesting that the KRaft controller unfence this broker (kafka.server.KafkaServer)
+    INFO [BrokerLifecycleManager id=100 isZkBroker=true] The broker has been unfenced. Transitioning from RECOVERY to RUNNING. (kafka.server.BrokerLifecycleManager)
+    ```
+
+    In the controllers, the following message should show up:
+
+    ```console
+    Transitioning ZK migration state from PRE_MIGRATION to MIGRATION (org.apache.kafka.controller.FeatureControlManager)
+    ```
+
+4. Once all brokers have been successfully migrated, set `broker.zookeeperMigrationMode=false` to fully migrate them.
+
+    ```yaml
+    broker:
+      zookeeperMigrationMode: false
+    ```
+
+5. To conclude the migration, switch off migration mode on controllers and stop Zookeeper:
+
+    ```yaml
+    controller:
+      zookeeperMigrationMode: false
+    zookeeper:
+      enabled: false
+    ```
+
+    After migration is complete, you should see the following message in your controllers:
+
+    ```console
+    [2023-07-13 13:07:45,226] INFO [QuorumController id=1] Transitioning ZK migration state from MIGRATION to POST_MIGRATION (org.apache.kafka.controller.FeatureControlManager)
+    ```
+
+6. (**Optional**) If you would like to switch to a non-dedicated cluster, set `controller.controllerOnly=false`. This will cause controller-only nodes to switch to controller+broker nodes.
+
+    At that point, you could manually decommission broker-only nodes by reassigning its partitions to controller-eligible nodes.
+
+    For more information about decommissioning kafka broker check the [Kafka documentation](https://www.confluent.io/blog/remove-kafka-brokers-from-any-cluster-the-easy-way/).
 
 ## Upgrading
+
+### To 24.0.0
+
+This major version is a refactor of the Kafka chart and its architecture, to better adapt to Kraft features introduced in version 22.0.0.
+Additionally, this version introduces other major changes in the operation logic, such as compatibility with `securityContext.readOnlyRootFs=true` for additional security hardening, or default SASL_PLAINTEXT configuration for all listeners.
+
+
+
+#### Upgrading from Kraft mode
+
+If upgrading from Kraft mode, existing PVCs from Kafka containers should be reattached to 'controller' pods.
+
+#### Upgrading from Zookeeper mode
+
+If upgrading from Zookeeper mode, make sure you set 'controller.replicaCount=0' and reattach the existing PVCs to 'broker' pods.
+This will allow you to perform a migration to Kraft mode in the future by following the 'Migrating from Zookeeper' section of this documentation.
+
+#### Retaining PersistentVolumes
+
+When upgrading the Kafka chart, you may want to retain your existing data. To do so, we recommend following this guide:
+
+**NOTE**: This guide requires the binaries 'kubectl' and 'jq'.
+
+```console
+# Env variables
+REPLICA=0
+OLD_PVC="data-<your_release_name>-kafka-${REPLICA}"
+NEW_PVC="data-<your_release_name>-kafka-<your_kafka_role>-${REPLICA}"
+PV_NAME=$(kubectl get pvc $OLD_PVC -o jsonpath="{.spec.volumeName}")
+NEW_PVC_MANIFEST_FILE="$NEW_PVC.yaml"
+
+# Modify PV reclaim policy
+kubectl patch pv $PV_NAME -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+# Manually check field 'RECLAIM POLICY'
+kubectl get pv $PV_NAME
+
+# Create new PVC manifest
+kubectl get pvc $OLD_PVC -o json | jq "
+  .metadata.name = \"$NEW_PVC\"
+  | with_entries(
+      select([.key] |
+        inside([\"metadata\", \"spec\", \"apiVersion\", \"kind\"]))
+    )
+  | del(
+      .metadata.annotations, .metadata.creationTimestamp,
+      .metadata.finalizers, .metadata.resourceVersion,
+      .metadata.selfLink, .metadata.uid
+    )
+  " > $NEW_PVC_MANIFEST_FILE
+# Check manifest
+cat $NEW_PVC_MANIFEST_FILE
+
+# Delete your old Statefulset and PVC
+kubectl delete sts "<your_release_name>-kafka"
+kubectl delete pvc $OLD_PVC
+# Make PV available again and create the new PVC
+kubectl patch pv $PV_NAME -p '{"spec":{"claimRef": null}}'
+kubectl apply -f $NEW_PVC_MANIFEST_FILE
+```
+
+Repeat this process for each replica you had in your Kafka cluster. Once completed, upgrade the cluster and the new Statefulset should reuse the existing PVCs.
+
+### To 23.0.0
+
+This major updates Kafka to its newest version, 3.5.x. For more information, please refer to [kafka upgrade notes](https://kafka.apache.org/35/documentation.html#upgrade).
 
 ### To 22.0.0
 

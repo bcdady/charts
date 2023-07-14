@@ -299,7 +299,7 @@ Return true if a configmap object should be created for controller-eligible pods
 {{- end -}}
 
 {{/*
-Return the Kafka broker-only configuration configmap
+Return the Kafka broker configuration configmap
 */}}
 {{- define "kafka.broker.configmapName" -}}
 {{- if .Values.broker.existingConfigmap -}}
@@ -312,7 +312,7 @@ Return the Kafka broker-only configuration configmap
 {{- end -}}
 
 {{/*
-Return true if a configmap object should be created for broker-only pods
+Return true if a configmap object should be created for broker pods
 */}}
 {{- define "kafka.broker.createConfigmap" -}}
 {{- if and (not .Values.broker.existingConfigmap) (not .Values.existingConfigmap) }}
@@ -480,26 +480,17 @@ Returns the controller quorum voters based on the number of controller-eligible 
 {{- end -}}
 
 {{/*
-Section of the server.properties configmap shared by both controller-eligible and broker-only nodes
+Section of the server.properties configmap shared by both controller-eligible and broker nodes
 */}}
 {{- define "kafka.commonConfig" -}}
 log.dir={{ printf "%s/data" .Values.controller.persistence.mountPath }}
-{{- if or (include "kafka.saslEnabled" .) .Values.sasl.zookeeper.user }}
+{{- if or (include "kafka.saslEnabled" .) }}
 sasl.enabled.mechanisms={{ upper .Values.sasl.enabledMechanisms }}
 {{- end }}
 # Interbroker configuration
 inter.broker.listener.name={{ .Values.listeners.interbroker.name }}
 {{- if regexFind "SASL" (upper .Values.listeners.interbroker.protocol) }}
 sasl.mechanism.inter.broker.protocol={{ upper .Values.sasl.interBrokerMechanism }}
-{{- end }}
-{{- if .Values.kraft.enabled }}
-# KRaft configuration
-#node.id=
-controller.listener.names={{ .Values.listeners.controller.name }}
-controller.quorum.voters={{ include "kafka.kraft.controllerQuorumVoters" . }}
-{{- if regexFind "SASL" (upper .Values.listeners.controller.protocol) }}
-sasl.mechanism.controller.protocol={{ upper .Values.sasl.controllerMechanism }}
-{{- end }}
 {{- end }}
 {{- if (include "kafka.sslEnabled" .) }}
 # TLS configuration
@@ -522,28 +513,6 @@ super.users={{ .Values.acl.superUsers }}
 {{- if not (empty .Values.acl.allowEveryoneIfNoAclFound) }}
 allow.everyone.if.no.acl.found={{ .Values.acl.allowEveryoneIfNoAclFound }}
 {{- end }}
-{{- if or .Values.zookeeper.enabled .Values.externalZookeeper.servers }}
-# Zookeeper configuration
-zookeeper.connect={{ include "kafka.zookeeperConnect" . }}
-#broker.id=
-{{- if .Values.zookeeperMigrationMode }}
-zookeeper.metadata.migration.enable=true
-{{- end }}
-{{- if .Values.sasl.zookeeper.user }}
-sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required \
-    username="{{ .Values.sasl.zookeeper.user }}" \
-    password="zookeeper-password-placeholder";
-{{- end }}
-{{- if and .Values.tls.zookeeper.enabled .Values.tls.zookeeper.existingSecret }}
-zookeeper.clientCnxnSocket=org.apache.zookeeper.ClientCnxnSocketNetty
-zookeeper.ssl.client.enable=true
-zookeeper.ssl.keystore.location=/opt/bitnami/kafka/config/certs/zookeeper.keystore.jks
-zookeeper.ssl.truststore.location=/opt/bitnami/kafka/config/certs/zookeeper.truststore.jks
-zookeeper.ssl.hostnameVerification={{ .Values.tls.zookeeper.verifyHostname }}
-#zookeeper.ssl.keystore.password=
-#zookeeper.ssl.truststore.password=
-{{- end }}
-{{- end }}
 {{- if (include "kafka.saslEnabled" .) }}
 # Listeners SASL JAAS configuration
 {{- $listeners := list .Values.listeners.client .Values.listeners.interbroker }}
@@ -556,7 +525,7 @@ listener.name.{{lower $listener.name}}.ssl.client.auth={{ $listener.sslClientAut
 {{- end }}
 {{- if regexFind "SASL" (upper $listener.protocol) }}
 {{- range $mechanism := ( splitList "," $.Values.sasl.enabledMechanisms )}}
-  {{- $securityModule := ternary "org.apache.kafka.common.security.plain.PlainLoginModule required" "org.apache.kafka.common.security.plain.ScramLoginModule required" (eq "PLAIN" (upper $mechanism)) }}
+  {{- $securityModule := ternary "org.apache.kafka.common.security.plain.PlainLoginModule required" "org.apache.kafka.common.security.scram.ScramLoginModule required" (eq "PLAIN" (upper $mechanism)) }}
   {{- $saslJaasConfig := list $securityModule }}
   {{- if eq $listener.name $.Values.listeners.interbroker.name }}
   {{- $saslJaasConfig = append $saslJaasConfig (printf "username=\"%s\"" $.Values.sasl.interbroker.user) }}
@@ -580,25 +549,57 @@ listener.name.{{lower $listener.name}}.{{lower $mechanism}}.sasl.jaas.config={{ 
 {{- end }}
 {{- end }}
 {{- end }}
-{{- if .Values.kraft.enabled }}
+# End of SASL JAAS configuration
+{{- end }}
+{{- end -}}
+
+{{/*
+Zookeeper connection section of the server.properties
+*/}}
+{{- define "kafka.zookeeperConfig" -}}
+zookeeper.connect={{ include "kafka.zookeeperConnect" . }}
+#broker.id=
+{{- if .Values.sasl.zookeeper.user }}
+sasl.jaas.config=org.apache.kafka.common.security.plain.PlainLoginModule required \
+    username="{{ .Values.sasl.zookeeper.user }}" \
+    password="zookeeper-password-placeholder";
+{{- end }}
+{{- if and .Values.tls.zookeeper.enabled .Values.tls.zookeeper.existingSecret }}
+zookeeper.clientCnxnSocket=org.apache.zookeeper.ClientCnxnSocketNetty
+zookeeper.ssl.client.enable=true
+zookeeper.ssl.keystore.location=/opt/bitnami/kafka/config/certs/zookeeper.keystore.jks
+zookeeper.ssl.truststore.location=/opt/bitnami/kafka/config/certs/zookeeper.truststore.jks
+zookeeper.ssl.hostnameVerification={{ .Values.tls.zookeeper.verifyHostname }}
+#zookeeper.ssl.keystore.password=
+#zookeeper.ssl.truststore.password=
+{{- end }}
+{{- end -}}
+
+{{/*
+Kraft section of the server.properties
+*/}}
+{{- define "kafka.kraftConfig" -}}
+#node.id=
+controller.listener.names={{ .Values.listeners.controller.name }}
+controller.quorum.voters={{ include "kafka.kraft.controllerQuorumVoters" . }}
 {{- $listener := $.Values.listeners.controller }}
 {{- if and $listener.sslClientAuth (regexFind "SSL" (upper $listener.protocol)) }}
+# Kraft Controller listener SSL settings
 listener.name.{{lower $listener.name}}.ssl.client.auth={{ $listener.sslClientAuth }}
 {{- end }}
 {{- if regexFind "SASL" (upper $listener.protocol) }}
   {{- $mechanism := $.Values.sasl.controllerMechanism }}
-  {{- $securityModule := ternary "org.apache.kafka.common.security.plain.PlainLoginModule required" "org.apache.kafka.common.security.plain.ScramLoginModule required" (eq "PLAIN" (upper $mechanism)) }}
+  {{- $securityModule := ternary "org.apache.kafka.common.security.plain.PlainLoginModule required" "org.apache.kafka.common.security.scram.ScramLoginModule required" (eq "PLAIN" (upper $mechanism)) }}
   {{- $saslJaasConfig := list $securityModule }}
   {{- $saslJaasConfig = append $saslJaasConfig (printf "username=\"%s\"" $.Values.sasl.controller.user) }}
   {{- $saslJaasConfig = append $saslJaasConfig (print "password=\"controller-password-placeholder\"") }}
   {{- if eq (upper $mechanism) "PLAIN" }}
   {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"controller-password-placeholder\"" $.Values.sasl.controller.user) }}
   {{- end }}
-listener.name.{{lower $listener.name}}.sasl.enabled.mechanisms={{upper $mechanism}}
+# Kraft Controller listener SASL settings
+sasl.mechanism.controller.protocol={{ upper $mechanism }}
+listener.name.{{lower $listener.name}}.sasl.enabled.mechanisms={{ upper $mechanism }}
 listener.name.{{lower $listener.name}}.{{lower $mechanism }}.sasl.jaas.config={{ join " " $saslJaasConfig }};
-{{- end }}
-{{- end }}
-# End of SASL JAAS configuration
 {{- end }}
 {{- end -}}
 
@@ -759,6 +760,8 @@ Init container definition for Kafka initialization
     {{- end }}
     {{- end }}
   volumeMounts:
+    - name: data
+      mountPath: /bitnami/kafka
     - name: kafka-config
       mountPath: /config
     - name: kafka-configmaps
@@ -839,6 +842,9 @@ Compile all warnings into a single message, and call fail.
 {{- $messages := append $messages (include "kafka.validateValues.tlsSecret" .) -}}
 {{- $messages := append $messages (include "kafka.validateValues.provisioning.tlsPasswords" .) -}}
 {{- $messages := append $messages (include "kafka.validateValues.kraftMode" .) -}}
+{{- $messages := append $messages (include "kafka.validateValues.kraftMissingControllers" .) -}}
+{{- $messages := append $messages (include "kafka.validateValues.zookeeperMissingBrokers" .) -}}
+{{- $messages := append $messages (include "kafka.validateValues.zookeeperNoControllers" .) -}}
 {{- $messages := append $messages (include "kafka.validateValues.modeEmpty" .) -}}
 {{- $messages := without $messages "" -}}
 {{- $message := join "\n" $messages -}}
@@ -894,7 +900,7 @@ kafka: .Values.externalAccess.controller.service.nodePorts
 {{- $externalIPListIsEmpty := empty .Values.externalAccess.broker.service.externalIPs -}}
 {{- if and .Values.externalAccess.enabled (not .Values.externalAccess.autoDiscovery.enabled) (eq .Values.externalAccess.broker.service.type "NodePort") (or (and (not $nodePortListIsEmpty) (not $nodePortListLengthEqualsReplicaCount)) (and $nodePortListIsEmpty $externalIPListIsEmpty)) -}}
 kafka: .Values.externalAccess.broker.service.nodePorts
-    Number of broker-only replicas and externalAccess.broker.service.nodePorts array length must be the same. Currently: replicaCount = {{ $replicaCount }} and length nodePorts = {{ $nodePortListLength }} - {{ $externalIPListIsEmpty }}
+    Number of broker replicas and externalAccess.broker.service.nodePorts array length must be the same. Currently: replicaCount = {{ $replicaCount }} and length nodePorts = {{ $nodePortListLength }} - {{ $externalIPListIsEmpty }}
 {{- end -}}
 {{- end -}}
 
@@ -920,7 +926,7 @@ kafka: .Values.externalAccess.controller.service.externalIPs
 {{- $nodePortListIsEmpty := empty .Values.externalAccess.broker.service.nodePorts -}}
 {{- if and .Values.externalAccess.enabled (not .Values.externalAccess.autoDiscovery.enabled) (eq .Values.externalAccess.broker.service.type "NodePort") (or (and (not $externalIPListIsEmpty) (not $externalIPListEqualsReplicaCount)) (and $externalIPListIsEmpty $nodePortListIsEmpty)) -}}
 kafka: .Values.externalAccess.broker.service.externalIPs
-    Number of broker-only replicas and externalAccess.broker.service.externalIPs array length must be the same. Currently: replicaCount = {{ $replicaCount }} and length externalIPs = {{ $externalIPListLength }}
+    Number of broker replicas and externalAccess.broker.service.externalIPs array length must be the same. Currently: replicaCount = {{ $replicaCount }} and length externalIPs = {{ $externalIPListLength }}
 {{- end -}}
 {{- end -}}
 
@@ -1029,7 +1035,7 @@ kafka: tls.existingSecret
 
 {{/* Validate values of Kafka provisioning - keyPasswordSecretKey, keystorePasswordSecretKey or truststorePasswordSecretKey must not be used without passwordsSecret */}}
 {{- define "kafka.validateValues.provisioning.tlsPasswords" -}}
-{{- if and (regexFind "SSL" (upper .Values.listeners.interbroker.protocol)) .Values.provisioning.enabled (not .Values.provisioning.auth.tls.passwordsSecret) }}
+{{- if and (regexFind "SSL" (upper .Values.listeners.client.protocol)) .Values.provisioning.enabled (not .Values.provisioning.auth.tls.passwordsSecret) }}
 {{- if or .Values.provisioning.auth.tls.keyPasswordSecretKey .Values.provisioning.auth.tls.keystorePasswordSecretKey .Values.provisioning.auth.tls.truststorePasswordSecretKey }}
 kafka: tls.keyPasswordSecretKey,tls.keystorePasswordSecretKey,tls.truststorePasswordSecretKey
     tls.keyPasswordSecretKey,tls.keystorePasswordSecretKey,tls.truststorePasswordSecretKey
@@ -1038,19 +1044,41 @@ kafka: tls.keyPasswordSecretKey,tls.keystorePasswordSecretKey,tls.truststorePass
 {{- end -}}
 {{- end -}}
 
-{{/* Validate values of Kafka Kraft mode. It cannot be used with zookeeper  */}}
+{{/* Validate values of Kafka Kraft mode. It cannot be used with Zookeeper unless migration is enabled */}}
 {{- define "kafka.validateValues.kraftMode" -}}
-{{- $externalZKlen := len .Values.externalZookeeper.servers}}
-{{- if and .Values.kraft.enabled (or .Values.zookeeper.enabled (gt $externalZKlen 0)) (not .Values.zookeeperMigrationMode)  }}
+{{- if and .Values.kraft.enabled (or .Values.zookeeper.enabled .Values.externalZookeeper.servers) (and (not .Values.controller.zookeeperMigrationMode ) (not .Values.broker.zookeeperMigrationMode )) }}
 kafka: Simultaneous KRaft and Zookeeper modes
-    Both Zookeeper and KRaft modes have been configured simultaneously, but migration mode 'zookeeperMigrationMode=true' is not enabled.
+    Both Zookeeper and KRaft modes have been configured simultaneously, but migration mode has not been enabled.
+{{- end -}}
+{{- end -}}
+
+{{/* Validate values of Kafka Kraft mode. At least 1 controller is configured or controller.quorum.voters is set  */}}
+{{- define "kafka.validateValues.kraftMissingControllers" -}}
+{{- if and .Values.kraft.enabled (le (int .Values.controller.replicaCount) 0) (not .Values.kraft.controllerQuorumVoters) }}
+kafka: Kraft mode - Missing controller-eligible nodes
+    Kraft mode has been enabled, but no controller-eligible nodes have been configured
+{{- end -}}
+{{- end -}}
+
+{{/* Validate values of Kafka Zookeper mode. At least 1 broker is configured  */}}
+{{- define "kafka.validateValues.zookeeperMissingBrokers" -}}
+{{- if and (or .Values.zookeeper.enabled .Values.externalZookeeper.servers) (le (int .Values.broker.replicaCount) 0)}}
+kafka: Zookeeper mode - No Kafka brokers configured
+    Zookeper mode has been enabled, but no Kafka brokers nodes have been configured
+{{- end -}}
+{{- end -}}
+
+{{/* Validate values of Kafka Zookeper mode. Controller nodes not enabled in Zookeeper mode unless migration enabled */}}
+{{- define "kafka.validateValues.zookeeperNoControllers" -}}
+{{- if and (or .Values.zookeeper.enabled .Values.externalZookeeper.servers) (gt (int .Values.controller.replicaCount) 0) (and (not .Values.controller.zookeeperMigrationMode ) (not .Values.broker.zookeeperMigrationMode )) }}
+kafka: Zookeeper mode - Controller nodes not supported
+    Controller replicas have been enabled in Zookeeper mode, set controller.replicaCount to zero or enable migration mode to migrate to Kraft mode
 {{- end -}}
 {{- end -}}
 
 {{/* Validate either KRaft or Zookeeper mode are enabled */}}
 {{- define "kafka.validateValues.modeEmpty" -}}
-{{- $externalZKlen := len .Values.externalZookeeper.servers}}
-{{- if and (not .Values.kraft.enabled) (not (or .Values.zookeeper.enabled (gt $externalZKlen 0))) }}
+{{- if and (not .Values.kraft.enabled) (not (or .Values.zookeeper.enabled .Values.externalZookeeper.servers)) }}
 kafka: Missing KRaft or Zookeeper mode settings
     The Kafka chart has been deployed but neither KRaft or Zookeeper modes have been enabled.
     Please configure 'kraft.enabled', 'zookeeper.enabled' or `externalZookeeper.servers` before proceeding.

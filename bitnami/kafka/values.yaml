@@ -124,11 +124,10 @@ existingLog4jConfigMap: ""
 ## @param heapOpts Kafka Java Heap size
 ##
 heapOpts: -Xmx1024m -Xms1024m
-## @param zookeeperMigrationMode If set to true, enable the Zookeeper migration mode.
-## This allows configuring both kraft and zookeeper modes simultaneously in order to perform the migration of the Kafka metadata.
+## @param interBrokerProtocolVersion Override the setting 'inter.broker.protocol.version' during the ZK migration.
 ## Ref. https://docs.confluent.io/platform/current/installation/migrate-zk-kraft.html
 ##
-zookeeperMigrationMode: false
+interBrokerProtocolVersion: ""
 ## Kafka listeners configuration
 ##
 listeners:
@@ -193,7 +192,7 @@ sasl:
   ## @param sasl.enabledMechanisms Comma-separated list of allowed SASL mechanisms when SASL listeners are configured. Allowed types: `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512`
   ## NOTE: At the moment, Kafka Raft mode does not support SCRAM, that is why only PLAIN is configured.
   ##
-  enabledMechanisms: PLAIN
+  enabledMechanisms: PLAIN,SCRAM-SHA-256,SCRAM-SHA-512
   ## @param sasl.interBrokerMechanism SASL mechanism for inter broker communication.
   ##
   interBrokerMechanism: PLAIN
@@ -222,20 +221,6 @@ sasl:
     users:
       - user1
     passwords: ""
-  ## Credentials to be used by the provisioning job.
-  ## @param sasl.client.users Username for the provisioning job when provisioning.enabled=true and client listener has SASL is enabled
-  ## @param sasl.client.password Password for provisioning user when SASL is enabled. Automatically generated if not set.
-  ##
-  provisioning:
-    user: provisioning_user
-    password: ""
-  ## Credentials to be used to extract metrics.
-  ## @param sasl.client.users Username for metrics extraction when metrics.kafka.enabled=true and client listener has SASL is enabled
-  ## @param sasl.client.password Password for provisioning user when SASL is enabled. Automatically generated if not set.
-  ##
-  metrics:
-    user: metrics_user
-    password: ""
   ## Credentials for Zookeeper communications.
   ## @param sasl.zookeeper.user Username for zookeeper communications when SASL is enabled.
   ## @param sasl.zookeeper.password Password for zookeeper communications when SASL is enabled.
@@ -456,6 +441,11 @@ controller:
   ## We recommend setting this this value high enough, as IDs under this value will be used by controller-elegible nodes
   ##
   minId: 0
+  ## @param controller.zookeeperMigrationMode Set to true to deploy cluster controller quorum
+  ## This allows configuring both kraft and zookeeper modes simultaneously in order to perform the migration of the Kafka metadata.
+  ## Ref. https://docs.confluent.io/platform/current/installation/migrate-zk-kraft.html
+  ##
+  zookeeperMigrationMode: false
   ## @param controller.config Configuration file for Kafka controller-eligible nodes, rendered as a template. Auto-generated based on chart values when not specified.
   ## @param controller.existingConfigmap ConfigMap with Kafka Configuration for controller-eligible nodes.
   ## NOTE: This will override the configuration based on values, please act carefully
@@ -805,11 +795,12 @@ broker:
   ## We recommend setting this this value high enough, as IDs under this value will be used by controller-eligible nodes
   ##
   ##
-  minId: 10000
-  ## @param broker.brokerRackAssignment Set Broker Assignment for multi tenant environment Allowed values: `aws-az`
-  ## ref: https://cwiki.apache.org/confluence/display/KAFKA/KIP-392%3A+Allow+consumers+to+fetch+from+closest+replica
+  minId: 100
+  ## @param broker.zookeeperMigrationMode Set to true to deploy cluster controller quorum
+  ## This allows configuring both kraft and zookeeper modes simultaneously in order to perform the migration of the Kafka metadata.
+  ## Ref. https://docs.confluent.io/platform/current/installation/migrate-zk-kraft.html
   ##
-  brokerRackAssignment: ""
+  zookeeperMigrationMode: false
   ## @param broker.config Configuration file for Kafka broker-only nodes, rendered as a template. Auto-generated based on chart values when not specified.
   ## @param broker.existingConfigmap ConfigMap with Kafka Configuration for broker-only nodes.
   ## NOTE: This will override the configuration based on values, please act carefully
@@ -2215,7 +2206,7 @@ provisioning:
 kraft:
   ## @param kraft.enabled Switch to enable or disable the KRaft mode for Kafka
   ##
-  enabled: true
+  enabled: false
   ## @param kraft.clusterId Kafka Kraft cluster ID. If not set, a random cluster ID will be generated the first time Kraft is initialized.
   ## NOTE: Already initialized Kafka nodes will use cluster ID stored in their persisted storage.
   ## If reusing existing PVCs or migrating from Zookeeper mode, make sure the cluster ID is set matching the stored cluster ID, otherwise new nodes will fail to join the cluster.
@@ -2238,7 +2229,7 @@ zookeeperChrootPath: ""
 zookeeper:
   ## @param zookeeper.enabled Switch to enable or disable the ZooKeeper helm chart. Must be false if you use KRaft mode.
   ##
-  enabled: false
+  enabled: true
   ## @param zookeeper.replicaCount Number of ZooKeeper nodes
   ##
   replicaCount: 1
@@ -2276,7 +2267,6 @@ zookeeper:
     size: 8Gi
 
 ## External Zookeeper Configuration
-## All of these values are only used if `zookeeper.enabled=false`
 ##
 externalZookeeper:
   ## @param externalZookeeper.servers List of external zookeeper servers to use. Typically used in combination with 'zookeeperChrootPath'. Must be empty if you use KRaft mode.

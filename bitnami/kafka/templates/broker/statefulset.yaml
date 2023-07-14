@@ -11,7 +11,7 @@ metadata:
   name: {{ printf "%s-broker" (include "common.names.fullname" .) }}
   namespace: {{ include "common.names.namespace" . | quote }}
   labels: {{- include "common.labels.standard" . | nindent 4 }}
-    app.kubernetes.io/component: broker-only
+    app.kubernetes.io/component: broker
     app.kubernetes.io/part-of: kafka
     {{- if .Values.commonLabels }}
     {{- include "common.tplvalues.render" ( dict "value" .Values.commonLabels "context" $ ) | nindent 4 }}
@@ -24,21 +24,21 @@ spec:
   replicas: {{ .Values.broker.replicaCount }}
   selector:
     matchLabels: {{- include "common.labels.matchLabels" . | nindent 6 }}
-      app.kubernetes.io/component: broker-only
+      app.kubernetes.io/component: broker
       app.kubernetes.io/part-of: kafka
-  serviceName: {{ printf "%s-controller-headless" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" }}
+  serviceName: {{ printf "%s-broker-headless" (include "common.names.fullname" .) | trunc 63 | trimSuffix "-" }}
   updateStrategy: {{- include "common.tplvalues.render" (dict "value" .Values.broker.updateStrategy "context" $ ) | nindent 4 }}
   template:
     metadata:
       labels: {{- include "common.labels.standard" . | nindent 8 }}
-        app.kubernetes.io/component: broker-only
+        app.kubernetes.io/component: broker
         app.kubernetes.io/part-of: kafka
         {{- if .Values.broker.podLabels }}
         {{- include "common.tplvalues.render" (dict "value" .Values.broker.podLabels "context" $) | nindent 8 }}
         {{- end }}
       annotations:
         {{- if (include "kafka.broker.createConfigmap" .) }}
-        checksum/configuration: {{ include (print $.Template.BasePath "/broker-only/configmap.yaml") . | sha256sum }}
+        checksum/configuration: {{ include (print $.Template.BasePath "/broker/configmap.yaml") . | sha256sum }}
         {{- end }}
         {{- if (include "kafka.createSaslSecret" .) }}
         checksum/passwords-secret: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
@@ -117,7 +117,7 @@ spec:
             - name: logs
               mountPath: {{ .Values.broker.logPersistence.mountPath }}
         {{- end }}
-        {{- if and .Values.externalAccess.enabled .Values.externalAccess.autoDiscovery.enabled (or .Values.externalAccess.broker.forceExpose (not .Values.broker.controllerOnly))}}
+        {{- if and .Values.externalAccess.enabled .Values.externalAccess.autoDiscovery.enabled }}
         {{- include "kafka.autoDiscoveryInitContainer" ( dict "role" "broker" "context" $) | nindent 8 }}
         {{- end }}
         {{- include "kafka.prepareKafkaInitContainer" ( dict "role" "broker" "context" $) | nindent 8 }}
@@ -155,8 +155,19 @@ spec:
                 secretKeyRef:
                   name: {{ printf "%s-kraft-cluster-id" (include "common.names.fullname" .) }}
                   key: kraft-cluster-id
+            {{- if .Values.broker.zookeeperMigrationMode }}
+            - name: KAFKA_SKIP_KRAFT_STORAGE_INIT
+              value: "true"
+            {{- end }}
             {{- end }}
             {{- if and (include "kafka.saslEnabled" .) (or (regexFind "SCRAM" (upper .Values.sasl.enabledMechanisms)) (regexFind "SCRAM" (upper .Values.sasl.controllerMechanism)) (regexFind "SCRAM" (upper .Values.sasl.interBrokerMechanism))) }}
+            {{- if or .Values.zookeeper.enabled .Values.externalZookeeper.servers }}
+            - name: KAFKA_ZOOKEEPER_BOOTSTRAP_SCRAM_USERS
+              value: "true"
+            {{- else }}
+            - name: KAFKA_KRAFT_BOOTSTRAP_SCRAM_USERS
+              value: "true"
+            {{- end }}
             {{- if and (include "kafka.client.saslEnabled" . ) .Values.sasl.client.users }}
             - name: KAFKA_CLIENT_USERS
               value: {{ join "," .Values.sasl.client.users | quote }}
