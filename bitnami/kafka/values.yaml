@@ -344,11 +344,11 @@ tls:
     ## If no truststore password is included in the passwords secret, set this value to an empty string.
     ##
     passwordsSecretTruststoreKey: truststore-password
-    ## @param tls.keystorePassword Password to access the JKS keystore when it is password-protected. Ignored when 'tls.passwordsSecret' is provided.
+    ## @param tls.zookeeper.keystorePassword Password to access the JKS keystore when it is password-protected. Ignored when 'tls.passwordsSecret' is provided.
     ## When using tls.type=PEM, the generated keystore will use this password or randomly generate one.
     ##
     keystorePassword: ""
-    ## @param tls.truststorePassword Password to access the JKS truststore when it is password-protected. Ignored when 'tls.passwordsSecret' is provided.
+    ## @param tls.zookeeper.truststorePassword Password to access the JKS truststore when it is password-protected. Ignored when 'tls.passwordsSecret' is provided.
     ## When using tls.type=PEM, the generated keystore will use this password or randomly generate one.
     ##
     truststorePassword: ""
