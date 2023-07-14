@@ -980,9 +980,7 @@ CMD /opt/bitnami/kafka/bin/connect-standalone.sh /opt/bitnami/kafka/config/conne
 
 ## Persistence
 
-The [Bitnami Kafka](https://github.com/bitnami/containers/tree/main/bitnami/kafka) image stores the Kafka data at the `/bitnami/kafka` path of the container.
-
-Persistent Volume Claims are used to keep the data across deployments. This is known to work in GCE, AWS, and minikube. See the [Parameters](#persistence-parameters) section to configure the PVC or to disable persistence.
+The [Bitnami Kafka](https://github.com/bitnami/containers/tree/main/bitnami/kafka) image stores the Kafka data at the `/bitnami/kafka` path of the container. Persistent Volume Claims are used to keep the data across deployments. This is known to work in GCE, AWS, and minikube.
 
 ### Adjust permissions of persistent volume mountpoint
 
@@ -1079,8 +1077,6 @@ This guide is an adaptation from upstream documentation: [Migrate from ZooKeeper
 
 This major version is a refactor of the Kafka chart and its architecture, to better adapt to Kraft features introduced in version 22.0.0.
 Additionally, this version introduces other major changes in the operation logic, such as compatibility with `securityContext.readOnlyRootFs=true` for additional security hardening, or default SASL_PLAINTEXT configuration for all listeners.
-
-
 
 #### Upgrading from Kraft mode
 

@@ -288,12 +288,6 @@ data:
       {{- if and .Values.kraft.enabled (regexFind "SASL" (upper .Values.listeners.controller.protocol)) }}
       replace_placeholder "controller-password-placeholder" "$KAFKA_CONTROLLER_PASSWORD"
       {{- end }}
-      {{- if and .Values.metrics.kafka.enabled (regexFind "SASL" (upper .Values.listeners.client.protocol)) }}
-      replace_placeholder "metrics-password-placeholder" "$KAFKA_METRICS_PASSWORD"
-      {{- end }}
-      {{- if and .Values.provisioning.enabled (regexFind "SASL" (upper .Values.listeners.client.protocol)) }}
-      replace_placeholder "provisioning-password-placeholder" "$KAFKA_PROVISIONING_PASSWORD"
-      {{- end }}
       {{- if (include "kafka.client.saslEnabled" .)}}
       read -r -a passwords <<<"$(tr ',;' ' ' <<<"${KAFKA_CLIENT_PASSWORDS:-}")"
       for ((i = 0; i < ${#passwords[@]}; i++)); do
