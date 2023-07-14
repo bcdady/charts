@@ -1076,7 +1076,67 @@ This guide is an adaptation from upstream documentation: [Migrate from ZooKeeper
 ### To 24.0.0
 
 This major version is a refactor of the Kafka chart and its architecture, to better adapt to Kraft features introduced in version 22.0.0.
-Additionally, this version introduces other major changes in the operation logic, such as compatibility with `securityContext.readOnlyRootFs=true` for additional security hardening, or default SASL_PLAINTEXT configuration for all listeners.
+
+The changes introduced in this version are:
+
+- New architecture. The chart now has two statefulsets, one for controller-eligible nodes (controller or controller+broker) and another one for broker-only nodes. Please take a look at the subsections [Upgrading from Kraft mode](#upgrading-from-kraft-mode) and [Upgrading from Zookeeper mode](#upgrading-from-zookeeper-mode) for more information about how to upgrade this chart depending on which mode you were using.
+
+  The new architecture is designed to support two main features:
+  - Deployment of dedicated nodes
+  - Support for Zookeeper to Kraft migration
+
+- Adds compatibility with `securityContext.readOnlyRootFs=true`, which is now the execution default.
+  - The Kafka configuration is now mounted as a ConfigMap instead of generated at runtime.
+  - Due to the implementation of readOnlyRootFs support, the following settings have been removed and will now rely on Kafka defaults. To override them, please use `extraConfig` to extend your Kafka configuration instead.
+    - `deleteTopicEnable`
+    - `autoCreateTopicsEnable`
+    - `logFlushIntervalMessages`
+    - `logFlushIntervalMs`
+    - `logRetentionBytes`
+    - `logRetentionCheckIntervalMs`
+    - `logRetentionHours`
+    - `logSegmentBytes`
+    - `logsDirs`
+    - `maxMessageBytes`
+    - `defaultReplicationFactor`
+    - `offsetsTopicReplicationFactor`
+    - `transactionStateLogReplicationFactor`
+    - `transactionStateLogMinIsr`
+    - `numIoThreads`
+    - `numNetworkThreads`
+    - `numPartitions`
+    - `numRecoveryThreadsPerDataDir`
+    - `socketReceiveBufferBytes`
+    - `socketRequestMaxBytes`
+    - `socketSendBufferBytes`
+    - `zookeeperConnectionTimeoutMs`
+- All listeners are configured with protocol 'SASL_PLAINTEXT' by default.
+- Support for SCRAM authentication in KRaft mode
+- All statefulset settings have been moved from values' root to `controller.*` and `broker.*`.
+- Refactor of listeners configuration:
+  - Settings `listeners`, `advertisedListeners` and `listenerSecurityProtocolMap` have been replaced with `listeners.*` object, which includes default listeners and each listener can be configured individually and extended using `listeners.extraListeners`.
+  - Values `interBrokerListenerName`, `allowPlaintextListener` have been removed.
+- Refactor of SASL, SSL and ACL settings:
+  - Authentication nomenclature `plaintext,tls,mtls,sasl,sasl_tls` has been removed. Listeners are now configured using Kafka nomenclature `PLAINTEXT,SASL_PLAINTEXT,SASL_SSL,SSL` in `listeners.*.protocol`.
+  - mTLS is configured by default for SSL protocol listeners, while it can now also be configured for SASL_SSL listeners if `listener.*.sslClientAuth` is set.
+  - All SASL settings are now grouped under `sasl.*`.
+    - `auth.sasl.mechanisms` -> `sasl.enabledMechanisms`
+    - `auth.interBrokerMechanism` -> `sasl.interBrokerMechanism`
+    - `auth.sasl.jaas.clientUSers` -> `sasl.client.users`
+    - `auth.sasl.jaas.clientPasswords` -> `sasl.client.passwords`
+    - `auth.sasl.jaas.interBrokerUser` -> `sasl.interbroker.user`
+    - `auth.sasl.jaas.interBrokerPassword` -> `sasl.interbroker.password`
+    - `auth.sasl.jaas.zookeeperUser` -> `sasl.zookeeper.user`
+    - `auth.sasl.jaas.zookeeperPassword` -> `sasl.zookeeper.password`
+    - `auth.sasl.jaas.existingSecret` -> `sasl.existingSecret`
+  - Added support for Controller listener protocols other than PLAINTEXT.
+  - TLS settings have been moved from `auth.tls.*` to `tls.*`.
+  - Zookeeper TLS settings have been moved from `auth.zookeeper*` to `tls.zookeeper.*`
+- Refactor externalAccess to support the new architecture:
+  - `externalAccess.service.*` have been renamed to `externalAccess.controller.service.*` and `externalAccess.controller.service.*`.
+  - Controller pods will not configure externalAccess unless:
+    - `controller.controllerOnly=false` (default), meaning the pods are running as 'controller+broker' nodes.
+    - `externalAccess.controller.service.forceExpose=true`, for use cases where controller-only nodes want to be exposed externally.
 
 #### Upgrading from Kraft mode
 
