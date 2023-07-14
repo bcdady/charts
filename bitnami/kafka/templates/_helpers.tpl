@@ -538,12 +538,6 @@ listener.name.{{lower $listener.name}}.ssl.client.auth={{ $listener.sslClientAut
   {{- range $i, $user := $.Values.sasl.client.users }}
   {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"password-placeholder-%d\"" $user (int $i)) }}
   {{- end }}
-  {{- if and $.Values.metrics.kafka.enabled (regexFind "SASL" (upper $.Values.listeners.client.protocol)) }}
-  {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"metrics-password-placeholder\"" $.Values.sasl.metrics.user) }}
-  {{- end }}
-  {{- if and $.Values.provisioning.enabled (regexFind "SASL" (upper $.Values.listeners.client.protocol)) }}
-  {{- $saslJaasConfig = append $saslJaasConfig (printf "user_%s=\"provisioning-password-placeholder\"" $.Values.sasl.provisioning.user) }}
-  {{- end }}
   {{- end }}
 listener.name.{{lower $listener.name}}.{{lower $mechanism}}.sasl.jaas.config={{ join " " $saslJaasConfig }};
 {{- end }}
