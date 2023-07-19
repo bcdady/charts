@@ -2204,7 +2204,7 @@ provisioning:
 kraft:
   ## @param kraft.enabled Switch to enable or disable the KRaft mode for Kafka
   ##
-  enabled: false
+  enabled: true
   ## @param kraft.clusterId Kafka Kraft cluster ID. If not set, a random cluster ID will be generated the first time Kraft is initialized.
   ## NOTE: Already initialized Kafka nodes will use cluster ID stored in their persisted storage.
   ## If reusing existing PVCs or migrating from Zookeeper mode, make sure the cluster ID is set matching the stored cluster ID, otherwise new nodes will fail to join the cluster.
@@ -2227,7 +2227,7 @@ zookeeperChrootPath: ""
 zookeeper:
   ## @param zookeeper.enabled Switch to enable or disable the ZooKeeper helm chart. Must be false if you use KRaft mode.
   ##
-  enabled: true
+  enabled: false
   ## @param zookeeper.replicaCount Number of ZooKeeper nodes
   ##
   replicaCount: 1
