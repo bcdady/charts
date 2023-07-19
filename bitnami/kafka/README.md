@@ -600,18 +600,18 @@ The command removes all the Kubernetes components associated with the chart and 
 
 ### KRaft chart parameters
 
-| Name                           | Description                                                                                                                                                   | Value   |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| `kraft.enabled`                | Switch to enable or disable the KRaft mode for Kafka                                                                                                          | `false` |
-| `kraft.clusterId`              | Kafka Kraft cluster ID. If not set, a random cluster ID will be generated the first time Kraft is initialized.                                                | `""`    |
-| `kraft.controllerQuorumVoters` | Override the Kafka controller quorum voters of the Kafka Kraft cluster. If not set, it will be automatically configured to use all controller-elegible nodes. | `""`    |
+| Name                           | Description                                                                                                                                                   | Value  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| `kraft.enabled`                | Switch to enable or disable the KRaft mode for Kafka                                                                                                          | `true` |
+| `kraft.clusterId`              | Kafka Kraft cluster ID. If not set, a random cluster ID will be generated the first time Kraft is initialized.                                                | `""`   |
+| `kraft.controllerQuorumVoters` | Override the Kafka controller quorum voters of the Kafka Kraft cluster. If not set, it will be automatically configured to use all controller-elegible nodes. | `""`   |
 
 ### ZooKeeper chart parameters
 
 | Name                                    | Description                                                                                                                                                             | Value               |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | `zookeeperChrootPath`                   | Path which puts data under some path in the global ZooKeeper namespace                                                                                                  | `""`                |
-| `zookeeper.enabled`                     | Switch to enable or disable the ZooKeeper helm chart. Must be false if you use KRaft mode.                                                                              | `true`              |
+| `zookeeper.enabled`                     | Switch to enable or disable the ZooKeeper helm chart. Must be false if you use KRaft mode.                                                                              | `false`             |
 | `zookeeper.replicaCount`                | Number of ZooKeeper nodes                                                                                                                                               | `1`                 |
 | `zookeeper.auth.client.enabled`         | Enable ZooKeeper auth                                                                                                                                                   | `false`             |
 | `zookeeper.auth.client.clientUser`      | User that will use ZooKeeper client (zkCli.sh) to authenticate. Must exist in the serverUsers comma-separated list.                                                     | `""`                |
